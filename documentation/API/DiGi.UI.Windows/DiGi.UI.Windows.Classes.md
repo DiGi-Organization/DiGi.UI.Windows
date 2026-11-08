@@ -91,6 +91,22 @@ protected TWindow? Window { protected get; }
 [TWindow](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.TWindow 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.TWindow')
 ### Methods
 
+<a name='DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.GetHoverText()'></a>
+
+## TrayApplicationContext\<TWindow\>\.GetHoverText\(\) Method
+
+When overridden in a derived class, returns the text shown in a popup while the pointer rests on the tray icon\.
+
+Called on the UI thread when the pointer enters the icon and every 250 ms while the popup is open, so the text follows live state. Return [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null') to show the native tooltip (the constructor's `text`) instead; the native tooltip is limited to 127 characters, the popup is not. The default returns [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null').
+
+```csharp
+protected virtual string? GetHoverText();
+```
+
+#### Returns
+[System\.String](https://learn.microsoft.com/en-us/dotnet/api/system.string 'System\.String')  
+The popup text, or [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null') for the native tooltip\.
+
 <a name='DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.GetWindow()'></a>
 
 ## TrayApplicationContext\<TWindow\>\.GetWindow\(\) Method

@@ -25,6 +25,11 @@ namespace DiGi.UI.Windows.Classes
         private Icon? icon_Static;
         private List<Icon>? icons_Animation;
         private int animationIndex = 0;
+        private readonly string text;
+        private readonly System.Windows.Controls.Primitives.Popup popup_Hover;
+        private readonly System.Windows.Controls.TextBlock textBlock_Hover;
+        private readonly DispatcherTimer dispatcherTimer_Hover;
+        private System.Drawing.Point point_Hover;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TrayApplicationContext{TWindow}"/> class.
@@ -34,6 +39,8 @@ namespace DiGi.UI.Windows.Classes
         /// <param name="showWindowOnStartup">Whether the window is shown and activated as soon as the context is created; <see langword="false"/> starts the application in the tray only.</param>
         public TrayApplicationContext(string text, bool showWindowOnStartup = true)
         {
+            this.text = text;
+
             // 1. Setup Context Menu
             ContextMenuStrip contextMenuStrip = new ();
             contextMenuStrip.Items.Add("Open", null, (object? s, EventArgs e) => ShowWindow());
@@ -50,12 +57,39 @@ namespace DiGi.UI.Windows.Classes
             };
 
             NotifyIcon.DoubleClick += (object? s, EventArgs e) => ShowWindow();
+            NotifyIcon.MouseMove += OnNotifyIconMouseMove;
+            contextMenuStrip.Opening += (object? s, System.ComponentModel.CancelEventArgs e) => CloseHover();
 
             icon_Static = NotifyIcon.Icon;
 
             // 3. Setup icon animation (created on the UI thread, so its ticks run there too)
             dispatcherTimer_Animation = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(250) };
             dispatcherTimer_Animation.Tick += OnAnimationTick;
+
+            // 4. Setup hover popup (replaces the native tooltip while GetHoverText returns text)
+            textBlock_Hover = new System.Windows.Controls.TextBlock()
+            {
+                FontSize = 12,
+                Foreground = System.Windows.SystemColors.InfoTextBrush,
+            };
+
+            popup_Hover = new System.Windows.Controls.Primitives.Popup()
+            {
+                Child = new System.Windows.Controls.Border()
+                {
+                    Background = System.Windows.SystemColors.InfoBrush,
+                    BorderBrush = System.Windows.SystemColors.ActiveBorderBrush,
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(8, 6, 8, 6),
+                    Child = textBlock_Hover
+                },
+                Placement = System.Windows.Controls.Primitives.PlacementMode.Top,
+                StaysOpen = true,
+                Focusable = false,
+            };
+
+            dispatcherTimer_Hover = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(250) };
+            dispatcherTimer_Hover.Tick += OnHoverTick;
 
             window = GetWindow();
             if(window is not null)
@@ -159,6 +193,83 @@ namespace DiGi.UI.Windows.Classes
             });
         }
 
+        /// <summary>
+        /// When overridden in a derived class, returns the text shown in a popup while the pointer rests on the tray icon.
+        /// <para>Called on the UI thread when the pointer enters the icon and every 250 ms while the popup is open, so the text follows live state. Return <see langword="null"/> to show the native tooltip (the constructor's <c>text</c>) instead; the native tooltip is limited to 127 characters, the popup is not. The default returns <see langword="null"/>.</para>
+        /// </summary>
+        /// <returns>The popup text, or <see langword="null"/> for the native tooltip.</returns>
+        protected virtual string? GetHoverText()
+        {
+            return null;
+        }
+
+        private void OnNotifyIconMouseMove(object? sender, MouseEventArgs e)
+        {
+            if (NotifyIcon is null || isExiting || NotifyIcon.ContextMenuStrip?.Visible == true)
+            {
+                return;
+            }
+
+            point_Hover = Control.MousePosition;
+
+            string? text_Hover = GetHoverText();
+            if (text_Hover is null)
+            {
+                CloseHover();
+                return;
+            }
+
+            // An empty Text suppresses the native tooltip, which would otherwise show on top of the popup.
+            NotifyIcon.Text = string.Empty;
+            textBlock_Hover.Text = text_Hover;
+
+            if (!popup_Hover.IsOpen)
+            {
+                double scale = 1.0;
+                using (Graphics graphics = Graphics.FromHwnd(IntPtr.Zero))
+                {
+                    scale = graphics.DpiX / 96.0;
+                }
+
+                // Placement Top puts the popup above this rectangle and flips it below when there is no room (taskbar at the top).
+                popup_Hover.PlacementRectangle = new Rect(point_Hover.X / scale, (point_Hover.Y / scale) - 12, 1, 1);
+                popup_Hover.IsOpen = true;
+                dispatcherTimer_Hover.Start();
+            }
+        }
+
+        private void OnHoverTick(object? sender, EventArgs e)
+        {
+            // NotifyIcon raises no mouse-leave; the pointer has left once it drifts further than an icon from the last MouseMove.
+            System.Drawing.Point point = Control.MousePosition;
+            int distance = Math.Max(Math.Abs(point.X - point_Hover.X), Math.Abs(point.Y - point_Hover.Y));
+            if (distance > SystemInformation.SmallIconSize.Width)
+            {
+                CloseHover();
+                return;
+            }
+
+            string? text_Hover = GetHoverText();
+            if (text_Hover is null)
+            {
+                CloseHover();
+                return;
+            }
+
+            textBlock_Hover.Text = text_Hover;
+        }
+
+        private void CloseHover()
+        {
+            dispatcherTimer_Hover.Stop();
+            popup_Hover.IsOpen = false;
+
+            if (NotifyIcon is not null && !isExiting)
+            {
+                NotifyIcon.Text = text;
+            }
+        }
+
         private void OnAnimationTick(object? sender, EventArgs e)
         {
             if (NotifyIcon is null || icons_Animation is null || icons_Animation.Count == 0)
@@ -242,6 +353,8 @@ namespace DiGi.UI.Windows.Classes
         {
             isExiting = true;
             dispatcherTimer_Animation.Stop();
+            dispatcherTimer_Hover.Stop();
+            popup_Hover.IsOpen = false;
 
             if (NotifyIcon != null)
             {
