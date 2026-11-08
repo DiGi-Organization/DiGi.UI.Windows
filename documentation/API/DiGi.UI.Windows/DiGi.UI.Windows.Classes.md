@@ -9,7 +9,7 @@
 
 Provides a base application context for applications that reside in the system tray and manage a specific window type\.
 
-Window behaviour (show on startup, hide on Minimise, hide on focus loss, hover refresh) is chosen per application through [TrayApplicationContextOptions](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.TrayApplicationContextOptions 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.TrayApplicationContextOptions'). The tray icon can be replaced ([SetIcon\(Icon\)](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetIcon(System.Drawing.Icon) 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.SetIcon\(System\.Drawing\.Icon\)')) and animated ([SetAnimationIcons\(IEnumerable&lt;Icon&gt;, TimeSpan\)](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetAnimationIcons(System.Collections.Generic.IEnumerable_System.Drawing.Icon_,System.TimeSpan) 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.SetAnimationIcons\(System\.Collections\.Generic\.IEnumerable\<System\.Drawing\.Icon\>, System\.TimeSpan\)'), [SetAnimated\(bool\)](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetAnimated(bool) 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.SetAnimated\(bool\)')), and the hover tooltip can be replaced by live text ([GetHoverText\(\)](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.GetHoverText() 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.GetHoverText\(\)')); all three are opt-in and leave the default tray icon and tooltip untouched when unused.
+Window behaviour (show on startup, hide on Minimise, hide on focus loss, hover refresh) is chosen per application through [TrayApplicationContextOptions](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.TrayApplicationContextOptions 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.TrayApplicationContextOptions'). The tray icon can be replaced ([SetIcon\(Icon\)](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetIcon(System.Drawing.Icon) 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.SetIcon\(System\.Drawing\.Icon\)')), animated ([SetAnimationIcons\(IEnumerable&lt;Icon&gt;, TimeSpan\)](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetAnimationIcons(System.Collections.Generic.IEnumerable_System.Drawing.Icon_,System.TimeSpan) 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.SetAnimationIcons\(System\.Collections\.Generic\.IEnumerable\<System\.Drawing\.Icon\>, System\.TimeSpan\)'), [SetAnimated\(bool\)](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetAnimated(bool) 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.SetAnimated\(bool\)')) and marked with a blinking indicator dot ([SetIndicator\(Nullable&lt;Color&gt;, TimeSpan\)](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetIndicator(System.Nullable_System.Drawing.Color_,System.TimeSpan) 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.SetIndicator\(System\.Nullable\<System\.Drawing\.Color\>, System\.TimeSpan\)'), [SetIndicatorVisible\(bool\)](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetIndicatorVisible(bool) 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.SetIndicatorVisible\(bool\)')), and the hover tooltip can be replaced by live text ([GetHoverText\(\)](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.GetHoverText() 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.GetHoverText\(\)')); all four are opt-in and leave the default tray icon and tooltip untouched when unused.
 
 ```csharp
 public abstract class TrayApplicationContext<TWindow> : System.Windows.Forms.ApplicationContext
@@ -230,6 +230,72 @@ protected void SetIcon(System.Drawing.Icon? icon);
 `icon` [System\.Drawing\.Icon](https://learn.microsoft.com/en-us/dotnet/api/system.drawing.icon 'System\.Drawing\.Icon')
 
 The static icon; [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null') is ignored\.
+
+<a name='DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetIndicator(System.Nullable_System.Drawing.Color_,System.TimeSpan)'></a>
+
+## TrayApplicationContext\<TWindow\>\.SetIndicator\(Nullable\<Color\>, TimeSpan\) Method
+
+Sets the colour and blink rate of the indicator dot drawn in the top\-right corner of the tray icon\.
+
+The dot is drawn over whichever icon is showing, static or animation frame, so it combines with [SetAnimated\(bool\)](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetAnimated(bool) 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.SetAnimated\(bool\)'). It is shown only while [SetIndicatorVisible\(bool\)](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetIndicatorVisible(bool) 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.SetIndicatorVisible\(bool\)') is [true](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool'). Safe to call from any thread.
+
+```csharp
+protected void SetIndicator(System.Nullable<System.Drawing.Color> color, System.TimeSpan blinkInterval);
+```
+#### Parameters
+
+<a name='DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetIndicator(System.Nullable_System.Drawing.Color_,System.TimeSpan).color'></a>
+
+`color` [System\.Nullable&lt;](https://learn.microsoft.com/en-us/dotnet/api/system.nullable-1 'System\.Nullable\`1')[System\.Drawing\.Color](https://learn.microsoft.com/en-us/dotnet/api/system.drawing.color 'System\.Drawing\.Color')[&gt;](https://learn.microsoft.com/en-us/dotnet/api/system.nullable-1 'System\.Nullable\`1')
+
+The dot colour; [null](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/null 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/keywords/null') removes the indicator\.
+
+<a name='DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetIndicator(System.Nullable_System.Drawing.Color_,System.TimeSpan).blinkInterval'></a>
+
+`blinkInterval` [System\.TimeSpan](https://learn.microsoft.com/en-us/dotnet/api/system.timespan 'System\.TimeSpan')
+
+How long the dot stays on, then off; [System\.TimeSpan\.Zero](https://learn.microsoft.com/en-us/dotnet/api/system.timespan.zero 'System\.TimeSpan\.Zero') or less shows it steadily\.
+
+<a name='DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetIndicatorVisible(bool)'></a>
+
+## TrayApplicationContext\<TWindow\>\.SetIndicatorVisible\(bool\) Method
+
+Shows or hides the indicator dot configured by [SetIndicator\(Nullable&lt;Color&gt;, TimeSpan\)](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetIndicator(System.Nullable_System.Drawing.Color_,System.TimeSpan) 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.SetIndicator\(System\.Nullable\<System\.Drawing\.Color\>, System\.TimeSpan\)')\.
+
+Safe to call from any thread and idempotent, so it can be driven straight from state-change notifications. Does nothing visible until [SetIndicator\(Nullable&lt;Color&gt;, TimeSpan\)](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetIndicator(System.Nullable_System.Drawing.Color_,System.TimeSpan) 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.SetIndicator\(System\.Nullable\<System\.Drawing\.Color\>, System\.TimeSpan\)') has supplied a colour.
+
+```csharp
+protected void SetIndicatorVisible(bool visible);
+```
+#### Parameters
+
+<a name='DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.SetIndicatorVisible(bool).visible'></a>
+
+`visible` [System\.Boolean](https://learn.microsoft.com/en-us/dotnet/api/system.boolean 'System\.Boolean')
+
+[true](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool') to show \(and blink\) the dot; [false](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool') to remove it\.
+
+<a name='DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.UpdateIndicatorIcons()'></a>
+
+## TrayApplicationContext\<TWindow\>\.UpdateIndicatorIcons\(\) Method
+
+Rebuilds the indicator variants of the static and animation icons, then disposes the previous ones once they are no longer shown\.
+
+These variants are created and owned by this context, unlike the icons passed in.
+
+```csharp
+private void UpdateIndicatorIcons();
+```
+
+<a name='DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.UpdateNotifyIcon()'></a>
+
+## TrayApplicationContext\<TWindow\>\.UpdateNotifyIcon\(\) Method
+
+Shows the icon matching the current state: the animation frame or the static icon, with or without the indicator dot\.
+
+```csharp
+private void UpdateNotifyIcon();
+```
 
 <a name='DiGi.UI.Windows.Classes.TrayApplicationContextOptions'></a>
 

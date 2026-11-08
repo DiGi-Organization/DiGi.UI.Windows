@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows;
 using System.Windows.Forms;
@@ -11,7 +12,7 @@ namespace DiGi.UI.Windows.Classes
 {
     /// <summary>
     /// Provides a base application context for applications that reside in the system tray and manage a specific window type.
-    /// <para>Window behaviour (show on startup, hide on Minimise, hide on focus loss, hover refresh) is chosen per application through <see cref="TrayApplicationContextOptions"/>. The tray icon can be replaced (<see cref="SetIcon"/>) and animated (<see cref="SetAnimationIcons"/>, <see cref="SetAnimated"/>), and the hover tooltip can be replaced by live text (<see cref="GetHoverText"/>); all three are opt-in and leave the default tray icon and tooltip untouched when unused.</para>
+    /// <para>Window behaviour (show on startup, hide on Minimise, hide on focus loss, hover refresh) is chosen per application through <see cref="TrayApplicationContextOptions"/>. The tray icon can be replaced (<see cref="SetIcon"/>), animated (<see cref="SetAnimationIcons"/>, <see cref="SetAnimated"/>) and marked with a blinking indicator dot (<see cref="SetIndicator"/>, <see cref="SetIndicatorVisible"/>), and the hover tooltip can be replaced by live text (<see cref="GetHoverText"/>); all four are opt-in and leave the default tray icon and tooltip untouched when unused.</para>
     /// </summary>
     /// <typeparam name="TWindow">The type of the Window managed by this context, which must inherit from <see cref="Window"/>.</typeparam>
     public abstract class TrayApplicationContext<TWindow> : ApplicationContext where TWindow : Window
@@ -36,6 +37,14 @@ namespace DiGi.UI.Windows.Classes
         private Icon? icon_Static;
         private List<Icon>? icons_Animation;
         private int animationIndex = 0;
+
+        private readonly DispatcherTimer dispatcherTimer_Indicator;
+        private System.Drawing.Color? color_Indicator;
+        private bool indicatorVisible = false;
+        private bool indicatorBlinks = true;
+        private bool indicatorShown = true;
+        private Icon? icon_Static_Indicator;
+        private List<Icon>? icons_Animation_Indicator;
 
         private readonly System.Windows.Controls.Primitives.Popup popup_Hover;
         private readonly System.Windows.Controls.TextBlock textBlock_Hover;
@@ -77,6 +86,9 @@ namespace DiGi.UI.Windows.Classes
             // 3. Setup icon animation (created on the UI thread, so its ticks run there too)
             dispatcherTimer_Animation = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(250) };
             dispatcherTimer_Animation.Tick += OnAnimationTick;
+
+            dispatcherTimer_Indicator = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromSeconds(1) };
+            dispatcherTimer_Indicator.Tick += OnIndicatorTick;
 
             // 4. Setup hover popup (replaces the native tooltip while GetHoverText returns text)
             textBlock_Hover = new System.Windows.Controls.TextBlock()
@@ -180,10 +192,7 @@ namespace DiGi.UI.Windows.Classes
             Invoke(() =>
             {
                 icon_Static = icon;
-                if (!dispatcherTimer_Animation.IsEnabled && NotifyIcon is not null && !isExiting)
-                {
-                    NotifyIcon.Icon = icon;
-                }
+                UpdateIndicatorIcons();
             });
         }
 
@@ -205,8 +214,10 @@ namespace DiGi.UI.Windows.Classes
 
                 if (icons_Animation is null)
                 {
-                    StopAnimation();
+                    dispatcherTimer_Animation.Stop();
                 }
+
+                UpdateIndicatorIcons();
             });
         }
 
@@ -231,9 +242,172 @@ namespace DiGi.UI.Windows.Classes
                 }
 
                 animationIndex = 0;
-                OnAnimationTick(null, EventArgs.Empty);
                 dispatcherTimer_Animation.Start();
+                UpdateNotifyIcon();
             });
+        }
+
+        /// <summary>
+        /// Sets the colour and blink rate of the indicator dot drawn in the top-right corner of the tray icon.
+        /// <para>The dot is drawn over whichever icon is showing, static or animation frame, so it combines with <see cref="SetAnimated"/>. It is shown only while <see cref="SetIndicatorVisible"/> is <see langword="true"/>. Safe to call from any thread.</para>
+        /// </summary>
+        /// <param name="color">The dot colour; <see langword="null"/> removes the indicator.</param>
+        /// <param name="blinkInterval">How long the dot stays on, then off; <see cref="TimeSpan.Zero"/> or less shows it steadily.</param>
+        protected void SetIndicator(System.Drawing.Color? color, TimeSpan blinkInterval)
+        {
+            Invoke(() =>
+            {
+                color_Indicator = color;
+                indicatorBlinks = blinkInterval > TimeSpan.Zero;
+                if (indicatorBlinks)
+                {
+                    dispatcherTimer_Indicator.Interval = blinkInterval;
+                }
+
+                UpdateIndicatorIcons();
+
+                // Restart so a new interval or colour takes effect at once.
+                dispatcherTimer_Indicator.Stop();
+                ApplyIndicator(indicatorVisible);
+            });
+        }
+
+        /// <summary>
+        /// Shows or hides the indicator dot configured by <see cref="SetIndicator"/>.
+        /// <para>Safe to call from any thread and idempotent, so it can be driven straight from state-change notifications. Does nothing visible until <see cref="SetIndicator"/> has supplied a colour.</para>
+        /// </summary>
+        /// <param name="visible"><see langword="true"/> to show (and blink) the dot; <see langword="false"/> to remove it.</param>
+        protected void SetIndicatorVisible(bool visible)
+        {
+            Invoke(() => ApplyIndicator(visible));
+        }
+
+        private void ApplyIndicator(bool visible)
+        {
+            indicatorVisible = visible;
+
+            if (!visible || isExiting || color_Indicator is null || !indicatorBlinks)
+            {
+                dispatcherTimer_Indicator.Stop();
+                indicatorShown = true;
+            }
+            else if (!dispatcherTimer_Indicator.IsEnabled)
+            {
+                // Each run starts with the dot on, so it appears the moment a task starts.
+                indicatorShown = true;
+                dispatcherTimer_Indicator.Start();
+            }
+
+            UpdateNotifyIcon();
+        }
+
+        private void OnIndicatorTick(object? sender, EventArgs e)
+        {
+            indicatorShown = !indicatorShown;
+            UpdateNotifyIcon();
+        }
+
+        /// <summary>
+        /// Shows the icon matching the current state: the animation frame or the static icon, with or without the indicator dot.
+        /// </summary>
+        private void UpdateNotifyIcon()
+        {
+            if (NotifyIcon is null || isExiting)
+            {
+                return;
+            }
+
+            bool indicator = indicatorVisible && indicatorShown && color_Indicator is not null;
+
+            Icon? icon;
+            if (dispatcherTimer_Animation.IsEnabled && icons_Animation is not null && icons_Animation.Count != 0)
+            {
+                int index = animationIndex % icons_Animation.Count;
+                icon = indicator && icons_Animation_Indicator is not null && index < icons_Animation_Indicator.Count ? icons_Animation_Indicator[index] : icons_Animation[index];
+            }
+            else
+            {
+                icon = indicator && icon_Static_Indicator is not null ? icon_Static_Indicator : icon_Static;
+            }
+
+            if (icon is not null && !ReferenceEquals(NotifyIcon.Icon, icon))
+            {
+                NotifyIcon.Icon = icon;
+            }
+        }
+
+        /// <summary>
+        /// Rebuilds the indicator variants of the static and animation icons, then disposes the previous ones once they are no longer shown.
+        /// <para>These variants are created and owned by this context, unlike the icons passed in.</para>
+        /// </summary>
+        private void UpdateIndicatorIcons()
+        {
+            Icon? icon_Static_Indicator_Old = icon_Static_Indicator;
+            List<Icon>? icons_Animation_Indicator_Old = icons_Animation_Indicator;
+
+            icon_Static_Indicator = null;
+            icons_Animation_Indicator = null;
+
+            if (color_Indicator is System.Drawing.Color color)
+            {
+                icon_Static_Indicator = IndicatorIcon(icon_Static, color);
+                icons_Animation_Indicator = icons_Animation?.ConvertAll(x => IndicatorIcon(x, color) ?? x);
+            }
+
+            UpdateNotifyIcon();
+
+            DisposeIndicatorIcons(icon_Static_Indicator_Old, icons_Animation_Indicator_Old);
+        }
+
+        private void DisposeIndicatorIcons(Icon? icon, List<Icon>? icons)
+        {
+            icon?.Dispose();
+            if (icons is null)
+            {
+                return;
+            }
+
+            foreach (Icon icon_Temp in icons)
+            {
+                // An animation frame the indicator could not be drawn on is the caller's icon itself, not a copy.
+                if (icons_Animation is null || !icons_Animation.Contains(icon_Temp))
+                {
+                    icon_Temp.Dispose();
+                }
+            }
+        }
+
+        private static Icon? IndicatorIcon(Icon? icon, System.Drawing.Color color)
+        {
+            if (icon is null)
+            {
+                return null;
+            }
+
+            using Bitmap bitmap = icon.ToBitmap();
+            int size = Math.Min(bitmap.Width, bitmap.Height);
+            int diameter = Math.Max(5, (int)Math.Round(size * 0.44));
+            int border = Math.Max(1, size / 16);
+
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+            {
+                graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using SolidBrush solidBrush_Border = new(System.Drawing.Color.White);
+                using SolidBrush solidBrush = new(color);
+                graphics.FillEllipse(solidBrush_Border, bitmap.Width - diameter, 0, diameter, diameter);
+                graphics.FillEllipse(solidBrush, bitmap.Width - diameter + border, border, diameter - (2 * border), diameter - (2 * border));
+            }
+
+            IntPtr handle = bitmap.GetHicon();
+            try
+            {
+                using Icon icon_Handle = Icon.FromHandle(handle);
+                return (Icon)icon_Handle.Clone();
+            }
+            finally
+            {
+                Imports.DestroyIcon(handle);
+            }
         }
 
         /// <summary>
@@ -330,22 +504,19 @@ namespace DiGi.UI.Windows.Classes
 
         private void OnAnimationTick(object? sender, EventArgs e)
         {
-            if (NotifyIcon is null || isExiting || icons_Animation is null || icons_Animation.Count == 0)
+            if (icons_Animation is null || icons_Animation.Count == 0)
             {
                 return;
             }
 
-            NotifyIcon.Icon = icons_Animation[animationIndex % icons_Animation.Count];
             animationIndex = (animationIndex + 1) % icons_Animation.Count;
+            UpdateNotifyIcon();
         }
 
         private void StopAnimation()
         {
             dispatcherTimer_Animation.Stop();
-            if (NotifyIcon is not null && icon_Static is not null && !isExiting)
-            {
-                NotifyIcon.Icon = icon_Static;
-            }
+            UpdateNotifyIcon();
         }
 
         private void Invoke(Action action)
@@ -446,6 +617,7 @@ namespace DiGi.UI.Windows.Classes
         {
             isExiting = true;
             dispatcherTimer_Animation.Stop();
+            dispatcherTimer_Indicator.Stop();
             dispatcherTimer_Hover.Stop();
             popup_Hover.IsOpen = false;
 
@@ -454,6 +626,10 @@ namespace DiGi.UI.Windows.Classes
                 NotifyIcon.Visible = false;
                 NotifyIcon.Dispose();
             }
+
+            DisposeIndicatorIcons(icon_Static_Indicator, icons_Animation_Indicator);
+            icon_Static_Indicator = null;
+            icons_Animation_Indicator = null;
 
             if (window != null)
             {
