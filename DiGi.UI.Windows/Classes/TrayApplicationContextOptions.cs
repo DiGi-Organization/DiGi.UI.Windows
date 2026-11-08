@@ -21,7 +21,7 @@ namespace DiGi.UI.Windows.Classes
         /// <summary>
         /// Gets a value indicating whether the window is hidden to the tray when it loses focus to another process (desktop, taskbar or another application). Default <see langword="false"/>.
         /// </summary>
-        public bool HideOnDeactivate { get; init; } = false;
+        public bool HideOnDeactivate { get; init; }
 
         /// <summary>
         /// Gets how often the hover popup text is refreshed while the popup is open. Default 250 ms.

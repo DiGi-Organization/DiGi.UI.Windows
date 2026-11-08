@@ -29,18 +29,18 @@ namespace DiGi.UI.Windows.Classes
         protected readonly NotifyIcon? NotifyIcon;
         private readonly TrayApplicationContextOptions trayApplicationContextOptions;
         private readonly TWindow? window;
-        private bool isExiting = false;
+        private bool isExiting;
         private WindowState windowState_Restore = WindowState.Normal;
         private string tooltipText;
 
         private readonly DispatcherTimer dispatcherTimer_Animation;
         private Icon? icon_Static;
         private List<Icon>? icons_Animation;
-        private int animationIndex = 0;
+        private int animationIndex;
 
         private readonly DispatcherTimer dispatcherTimer_Indicator;
         private System.Drawing.Color? color_Indicator;
-        private bool indicatorVisible = false;
+        private bool indicatorVisible;
         private bool indicatorBlinks = true;
         private bool indicatorShown = true;
         private Icon? icon_Static_Indicator;
@@ -592,7 +592,7 @@ namespace DiGi.UI.Windows.Classes
                     return;
                 }
 
-                Imports.GetWindowThreadProcessId(foregroundHandle, out uint foregroundProcessId);
+                _ = Imports.GetWindowThreadProcessId(foregroundHandle, out uint foregroundProcessId);
                 uint currentProcessId = (uint)Environment.ProcessId;
 
                 // Only hide if the new active window belongs to a different process

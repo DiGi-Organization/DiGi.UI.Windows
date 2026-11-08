@@ -21,7 +21,7 @@ Inheritance [System\.Object](https://learn.microsoft.com/en-us/dotnet/api/system
 Retrieves a handle to the foreground window\.
 
 ```csharp
-public static nint GetForegroundWindow();
+internal static nint GetForegroundWindow();
 ```
 
 #### Returns

@@ -10,7 +10,7 @@ namespace DiGi.UI.Windows
         /// </summary>
         /// <returns>A handle to the foreground window.</returns>
         [DllImport("user32.dll")]
-        public static extern IntPtr GetForegroundWindow();
+        internal static extern IntPtr GetForegroundWindow();
 
         /// <summary>
         /// Retrieves the identifier of the thread that created the specified window and the identifier of the process.
@@ -19,7 +19,7 @@ namespace DiGi.UI.Windows
         /// <param name="lpdwProcessId">A pointer to a variable that receives the process identifier of the process that created the window.</param>
         /// <returns>The identifier of the thread that created the specified window.</returns>
         [DllImport("user32.dll")]
-        public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+        internal static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
         /// <summary>
         /// Destroys an icon and frees any memory the icon occupied; required for a handle returned by <c>Bitmap.GetHicon</c>, which <c>Icon.FromHandle</c> does not take ownership of.
@@ -28,6 +28,6 @@ namespace DiGi.UI.Windows
         /// <returns><see langword="true"/> when the icon was destroyed.</returns>
         [DllImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool DestroyIcon(IntPtr hIcon);
+        internal static extern bool DestroyIcon(IntPtr hIcon);
     }
 }
