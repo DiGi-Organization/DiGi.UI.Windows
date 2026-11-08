@@ -2,7 +2,6 @@ using System;
 using System.Drawing;
 using System.Windows;
 using System.Windows.Forms;
-using System.Diagnostics;
 
 namespace DiGi.UI.Windows.Classes
 {
@@ -18,12 +17,15 @@ namespace DiGi.UI.Windows.Classes
         protected readonly NotifyIcon? NotifyIcon;
         private TWindow? window;
         private bool isExiting = false;
+        private WindowState windowState_Restore = WindowState.Normal;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TrayApplicationContext{TWindow}"/> class.
+        /// <para>The window is hidden to the tray only by its Minimise or Close button; losing focus leaves it visible.</para>
         /// </summary>
         /// <param name="text">The text to display as a tooltip when hovering over the tray icon.</param>
-        public TrayApplicationContext(string text)
+        /// <param name="showWindowOnStartup">Whether the window is shown and activated as soon as the context is created; <see langword="false"/> starts the application in the tray only.</param>
+        public TrayApplicationContext(string text, bool showWindowOnStartup = true)
         {
             // 1. Setup Context Menu
             ContextMenuStrip contextMenuStrip = new ();
@@ -45,13 +47,21 @@ namespace DiGi.UI.Windows.Classes
             window = GetWindow();
             if(window is not null)
             {
+                windowState_Restore = window.WindowState == WindowState.Minimized ? WindowState.Normal : window.WindowState;
+
                 window.Closing += OnWindowClosing;
-                window.Deactivated += OnWindowDeactivated;
+                window.StateChanged += OnWindowStateChanged;
+
+                if (showWindowOnStartup)
+                {
+                    ShowWindow();
+                }
             }
         }
 
         /// <summary>
         /// When overridden in a derived class, returns the window instance associated with this application context.
+        /// <para>Called from the base constructor, before the derived constructor body runs: it must not depend on state that body assigns.</para>
         /// </summary>
         /// <returns>The <typeparamref name="TWindow"/> instance.</returns>
         protected abstract TWindow GetWindow();
@@ -63,51 +73,35 @@ namespace DiGi.UI.Windows.Classes
                 return;
             }
 
-            if (window.IsVisible)
+            // Restore before showing so a window hidden by Minimise does not come back minimised.
+            if (window.WindowState == WindowState.Minimized)
             {
-                if (window.WindowState == WindowState.Minimized)
-                {
-                    window.WindowState = WindowState.Normal;
-                }
-                window.Activate();
+                window.WindowState = windowState_Restore;
             }
-            else
+
+            if (!window.IsVisible)
             {
                 window.Show();
             }
+
+            window.Activate();
         }
 
-        private void OnWindowDeactivated(object? sender, EventArgs e)
+        private void OnWindowStateChanged(object? sender, EventArgs e)
         {
-            if (window == null || !window.IsVisible)
+            if (window == null)
             {
                 return;
             }
 
-            // Using Dispatcher to wait for the OS to update the Foreground Window
-            window.Dispatcher.BeginInvoke(new Action(() =>
+            if (window.WindowState == WindowState.Minimized)
             {
-                if (window == null || !window.IsVisible)
-                {
-                    return;
-                }
-
-                IntPtr foregroundHandle = Imports.GetForegroundWindow();
-                if (foregroundHandle == IntPtr.Zero)
-                {
-                    return;
-                }
-
-                Imports.GetWindowThreadProcessId(foregroundHandle, out uint foregroundProcessId);
-                uint currentProcessId = (uint)Process.GetCurrentProcess().Id;
-
-                // Only hide if the new active window belongs to a different process
-                // (e.g. user clicked on Desktop, Taskbar or another App)
-                if (foregroundProcessId != currentProcessId)
-                {
-                    window.Hide();
-                }
-            }), System.Windows.Threading.DispatcherPriority.Background);
+                window.Hide();
+            }
+            else
+            {
+                windowState_Restore = window.WindowState;
+            }
         }
 
         private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
