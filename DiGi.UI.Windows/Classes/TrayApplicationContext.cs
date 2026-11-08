@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Windows;
 using System.Windows.Forms;
+using System.Windows.Threading;
 
 namespace DiGi.UI.Windows.Classes
 {
@@ -18,6 +21,10 @@ namespace DiGi.UI.Windows.Classes
         private TWindow? window;
         private bool isExiting = false;
         private WindowState windowState_Restore = WindowState.Normal;
+        private readonly DispatcherTimer dispatcherTimer_Animation;
+        private Icon? icon_Static;
+        private List<Icon>? icons_Animation;
+        private int animationIndex = 0;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TrayApplicationContext{TWindow}"/> class.
@@ -44,6 +51,12 @@ namespace DiGi.UI.Windows.Classes
 
             NotifyIcon.DoubleClick += (object? s, EventArgs e) => ShowWindow();
 
+            icon_Static = NotifyIcon.Icon;
+
+            // 3. Setup icon animation (created on the UI thread, so its ticks run there too)
+            dispatcherTimer_Animation = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(250) };
+            dispatcherTimer_Animation.Tick += OnAnimationTick;
+
             window = GetWindow();
             if(window is not null)
             {
@@ -65,6 +78,118 @@ namespace DiGi.UI.Windows.Classes
         /// </summary>
         /// <returns>The <typeparamref name="TWindow"/> instance.</returns>
         protected abstract TWindow GetWindow();
+
+        /// <summary>
+        /// Gets the window managed by this context, or <see langword="null"/> when <see cref="GetWindow"/> returned none.
+        /// </summary>
+        protected TWindow? Window => window;
+
+        /// <summary>
+        /// Gets a value indicating whether the tray icon is currently cycling through the animation icons.
+        /// </summary>
+        protected bool IsAnimated => dispatcherTimer_Animation.IsEnabled;
+
+        /// <summary>
+        /// Sets the icon shown in the tray while no animation runs.
+        /// <para>Replaces the default, which is the icon associated with the executable (a single 32 px image Windows scales down for the tray); an icon loaded at <see cref="SystemInformation.SmallIconSize"/> renders sharper.</para>
+        /// </summary>
+        /// <param name="icon">The static icon; <see langword="null"/> is ignored.</param>
+        protected void SetIcon(Icon? icon)
+        {
+            if (icon is null)
+            {
+                return;
+            }
+
+            Invoke(() =>
+            {
+                icon_Static = icon;
+                if (!dispatcherTimer_Animation.IsEnabled && NotifyIcon is not null)
+                {
+                    NotifyIcon.Icon = icon;
+                }
+            });
+        }
+
+        /// <summary>
+        /// Sets the frames the tray icon cycles through while animated, and the time each frame is shown.
+        /// </summary>
+        /// <param name="icons">The animation frames in display order; <see langword="null"/> or empty disables the animation.</param>
+        /// <param name="interval">The time each frame is shown.</param>
+        protected void SetAnimationIcons(IEnumerable<Icon>? icons, TimeSpan interval)
+        {
+            List<Icon>? icons_Temp = icons?.Where(x => x is not null).ToList();
+
+            Invoke(() =>
+            {
+                icons_Animation = icons_Temp is null || icons_Temp.Count == 0 ? null : icons_Temp;
+                animationIndex = 0;
+                dispatcherTimer_Animation.Interval = interval;
+
+                if (icons_Animation is null)
+                {
+                    StopAnimation();
+                }
+            });
+        }
+
+        /// <summary>
+        /// Starts or stops the tray icon animation; stopping restores the static icon.
+        /// <para>Safe to call from any thread and idempotent, so it can be driven straight from state-change notifications. Starting does nothing until <see cref="SetAnimationIcons"/> has supplied frames.</para>
+        /// </summary>
+        /// <param name="animated"><see langword="true"/> to cycle the animation icons; <see langword="false"/> to show the static icon.</param>
+        protected void SetAnimated(bool animated)
+        {
+            Invoke(() =>
+            {
+                if (!animated)
+                {
+                    StopAnimation();
+                    return;
+                }
+
+                if (isExiting || icons_Animation is null || dispatcherTimer_Animation.IsEnabled)
+                {
+                    return;
+                }
+
+                animationIndex = 0;
+                OnAnimationTick(null, EventArgs.Empty);
+                dispatcherTimer_Animation.Start();
+            });
+        }
+
+        private void OnAnimationTick(object? sender, EventArgs e)
+        {
+            if (NotifyIcon is null || icons_Animation is null || icons_Animation.Count == 0)
+            {
+                return;
+            }
+
+            NotifyIcon.Icon = icons_Animation[animationIndex % icons_Animation.Count];
+            animationIndex = (animationIndex + 1) % icons_Animation.Count;
+        }
+
+        private void StopAnimation()
+        {
+            dispatcherTimer_Animation.Stop();
+            if (NotifyIcon is not null && icon_Static is not null && !isExiting)
+            {
+                NotifyIcon.Icon = icon_Static;
+            }
+        }
+
+        private void Invoke(Action action)
+        {
+            if (dispatcherTimer_Animation.Dispatcher.CheckAccess())
+            {
+                action();
+            }
+            else
+            {
+                dispatcherTimer_Animation.Dispatcher.BeginInvoke(action);
+            }
+        }
 
         private void ShowWindow()
         {
@@ -116,6 +241,7 @@ namespace DiGi.UI.Windows.Classes
         private void ExitApplication()
         {
             isExiting = true;
+            dispatcherTimer_Animation.Stop();
 
             if (NotifyIcon != null)
             {
