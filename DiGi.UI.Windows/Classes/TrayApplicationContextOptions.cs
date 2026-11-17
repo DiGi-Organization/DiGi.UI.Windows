@@ -9,7 +9,7 @@ namespace DiGi.UI.Windows.Classes
     public class TrayApplicationContextOptions
     {
         /// <summary>
-        /// Gets a value indicating whether the window is shown and activated as soon as the context is created. Default <see langword="true"/>; <see langword="false"/> starts the application in the tray only.
+        /// Gets a value indicating whether the window is shown and activated once the context is created - on the first dispatcher pump after its constructor (derived constructors included) has finished. Default <see langword="true"/>; <see langword="false"/> starts the application in the tray only.
         /// </summary>
         public bool ShowWindowOnStartup { get; init; } = true;
 

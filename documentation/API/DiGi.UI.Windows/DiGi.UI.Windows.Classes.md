@@ -34,6 +34,8 @@ Initializes a new instance of the [TrayApplicationContext&lt;TWindow&gt;](DiGi.U
 
 Must be created on the UI thread: the icon animation and hover timers are bound to its dispatcher.
 
+With [ShowWindowOnStartup](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContextOptions.ShowWindowOnStartup 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContextOptions\.ShowWindowOnStartup') the window is shown once the dispatcher pumps after construction, never inside the constructor, so a derived constructor always runs before the window appears.
+
 ```csharp
 public TrayApplicationContext(string text, DiGi.UI.Windows.Classes.TrayApplicationContextOptions? trayApplicationContextOptions=null);
 ```
@@ -135,6 +137,22 @@ protected TWindow? Window { protected get; }
 #### Property Value
 [TWindow](DiGi.UI.Windows.Classes.md#DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.TWindow 'DiGi\.UI\.Windows\.Classes\.TrayApplicationContext\<TWindow\>\.TWindow')
 ### Methods
+
+<a name='DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.EnsureHoverPopup()'></a>
+
+## TrayApplicationContext\<TWindow\>\.EnsureHoverPopup\(\) Method
+
+Builds the hover popup on first use and returns it; later calls return the same instance\.
+
+Built lazily so constructing the context creates no WPF popup at all - nothing exists until the pointer first hovers the icon.
+
+```csharp
+private System.Windows.Controls.Primitives.Popup EnsureHoverPopup();
+```
+
+#### Returns
+[System\.Windows\.Controls\.Primitives\.Popup](https://learn.microsoft.com/en-us/dotnet/api/system.windows.controls.primitives.popup 'System\.Windows\.Controls\.Primitives\.Popup')  
+The hover popup\.
 
 <a name='DiGi.UI.Windows.Classes.TrayApplicationContext_TWindow_.GetHoverText()'></a>
 
@@ -355,7 +373,7 @@ public System.TimeSpan HoverRefreshInterval { get; init; }
 
 ## TrayApplicationContextOptions\.ShowWindowOnStartup Property
 
-Gets a value indicating whether the window is shown and activated as soon as the context is created\. Default [true](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool'); [false](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool') starts the application in the tray only\.
+Gets a value indicating whether the window is shown and activated once the context is created \- on the first dispatcher pump after its constructor \(derived constructors included\) has finished\. Default [true](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool'); [false](https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool 'https://docs\.microsoft\.com/en\-us/dotnet/csharp/language\-reference/builtin\-types/bool') starts the application in the tray only\.
 
 ```csharp
 public bool ShowWindowOnStartup { get; init; }

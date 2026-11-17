@@ -46,14 +46,15 @@ namespace DiGi.UI.Windows.Classes
         private Icon? icon_Static_Indicator;
         private List<Icon>? icons_Animation_Indicator;
 
-        private readonly System.Windows.Controls.Primitives.Popup popup_Hover;
-        private readonly System.Windows.Controls.TextBlock textBlock_Hover;
+        private System.Windows.Controls.Primitives.Popup? popup_Hover;
+        private System.Windows.Controls.TextBlock? textBlock_Hover;
         private readonly DispatcherTimer dispatcherTimer_Hover;
         private System.Drawing.Point point_Hover;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="TrayApplicationContext{TWindow}"/> class.
         /// <para>Must be created on the UI thread: the icon animation and hover timers are bound to its dispatcher.</para>
+        /// <para>With <see cref="TrayApplicationContextOptions.ShowWindowOnStartup"/> the window is shown once the dispatcher pumps after construction, never inside the constructor, so a derived constructor always runs before the window appears.</para>
         /// </summary>
         /// <param name="text">The tooltip shown when hovering over the tray icon; trimmed to 127 characters, the Windows limit.</param>
         /// <param name="trayApplicationContextOptions">The behaviour switches; <see langword="null"/> uses the defaults of <see cref="TrayApplicationContextOptions"/>.</param>
@@ -90,30 +91,7 @@ namespace DiGi.UI.Windows.Classes
             dispatcherTimer_Indicator = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromSeconds(1) };
             dispatcherTimer_Indicator.Tick += OnIndicatorTick;
 
-            // 4. Setup hover popup (replaces the native tooltip while GetHoverText returns text)
-            textBlock_Hover = new System.Windows.Controls.TextBlock()
-            {
-                FontSize = 12,
-                Foreground = System.Windows.SystemColors.InfoTextBrush,
-            };
-
-            // MousePoint lets WPF read the cursor and convert it for the monitor's DPI; it flips the popup above the
-            // cursor when there is no room below, which is the case for a taskbar at the bottom of the screen.
-            popup_Hover = new System.Windows.Controls.Primitives.Popup()
-            {
-                Child = new System.Windows.Controls.Border()
-                {
-                    Background = System.Windows.SystemColors.InfoBrush,
-                    BorderBrush = System.Windows.SystemColors.ActiveBorderBrush,
-                    BorderThickness = new Thickness(1),
-                    Padding = new Thickness(8, 6, 8, 6),
-                    Child = textBlock_Hover
-                },
-                Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint,
-                StaysOpen = true,
-                Focusable = false,
-            };
-
+            // 4. Setup hover popup refresh (the popup itself is built on the first hover, see EnsureHoverPopup)
             dispatcherTimer_Hover = new DispatcherTimer(DispatcherPriority.Normal) { Interval = this.trayApplicationContextOptions.HoverRefreshInterval };
             dispatcherTimer_Hover.Tick += OnHoverTick;
 
@@ -127,9 +105,11 @@ namespace DiGi.UI.Windows.Classes
                 window.StateChanged += OnWindowStateChanged;
                 window.Deactivated += OnWindowDeactivated;
 
+                // Deferred, never shown from the constructor: the derived constructor must finish first, and a Show that
+                // throws (DiGi-Organization/DiGi.GIS.PostgreSQL.UI#43) must not abort the construction of the context.
                 if (this.trayApplicationContextOptions.ShowWindowOnStartup)
                 {
-                    ShowWindow();
+                    window.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(ShowWindow));
                 }
             }
         }
@@ -170,7 +150,7 @@ namespace DiGi.UI.Windows.Classes
             set
             {
                 tooltipText = TrimTooltipText(value);
-                if (NotifyIcon is not null && !isExiting && !popup_Hover.IsOpen)
+                if (NotifyIcon is not null && !isExiting && popup_Hover?.IsOpen != true)
                 {
                     NotifyIcon.Text = tooltipText;
                 }
@@ -461,13 +441,56 @@ namespace DiGi.UI.Windows.Classes
 
             // An empty Text suppresses the native tooltip, which would otherwise show on top of the popup.
             NotifyIcon.Text = string.Empty;
-            textBlock_Hover.Text = text_Hover;
 
-            if (!popup_Hover.IsOpen)
+            System.Windows.Controls.Primitives.Popup popup = EnsureHoverPopup();
+            if (textBlock_Hover is not null)
             {
-                popup_Hover.IsOpen = true;
+                textBlock_Hover.Text = text_Hover;
+            }
+
+            if (!popup.IsOpen)
+            {
+                popup.IsOpen = true;
                 dispatcherTimer_Hover.Start();
             }
+        }
+
+        /// <summary>
+        /// Builds the hover popup on first use and returns it; later calls return the same instance.
+        /// <para>Built lazily so constructing the context creates no WPF popup at all - nothing exists until the pointer first hovers the icon.</para>
+        /// </summary>
+        /// <returns>The hover popup.</returns>
+        private System.Windows.Controls.Primitives.Popup EnsureHoverPopup()
+        {
+            if (popup_Hover is not null)
+            {
+                return popup_Hover;
+            }
+
+            textBlock_Hover = new System.Windows.Controls.TextBlock()
+            {
+                FontSize = 12,
+                Foreground = System.Windows.SystemColors.InfoTextBrush,
+            };
+
+            // MousePoint lets WPF read the cursor and convert it for the monitor's DPI; it flips the popup above the
+            // cursor when there is no room below, which is the case for a taskbar at the bottom of the screen.
+            popup_Hover = new System.Windows.Controls.Primitives.Popup()
+            {
+                Child = new System.Windows.Controls.Border()
+                {
+                    Background = System.Windows.SystemColors.InfoBrush,
+                    BorderBrush = System.Windows.SystemColors.ActiveBorderBrush,
+                    BorderThickness = new Thickness(1),
+                    Padding = new Thickness(8, 6, 8, 6),
+                    Child = textBlock_Hover
+                },
+                Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint,
+                StaysOpen = true,
+                Focusable = false,
+            };
+
+            return popup_Hover;
         }
 
         private void OnHoverTick(object? sender, EventArgs e)
@@ -488,13 +511,19 @@ namespace DiGi.UI.Windows.Classes
                 return;
             }
 
-            textBlock_Hover.Text = text_Hover;
+            if (textBlock_Hover is not null)
+            {
+                textBlock_Hover.Text = text_Hover;
+            }
         }
 
         private void CloseHover()
         {
             dispatcherTimer_Hover.Stop();
-            popup_Hover.IsOpen = false;
+            if (popup_Hover is not null)
+            {
+                popup_Hover.IsOpen = false;
+            }
 
             if (NotifyIcon is not null && !isExiting)
             {
@@ -533,7 +562,7 @@ namespace DiGi.UI.Windows.Classes
 
         private void ShowWindow()
         {
-            if (window == null)
+            if (window == null || isExiting)
             {
                 return;
             }
@@ -619,7 +648,10 @@ namespace DiGi.UI.Windows.Classes
             dispatcherTimer_Animation.Stop();
             dispatcherTimer_Indicator.Stop();
             dispatcherTimer_Hover.Stop();
-            popup_Hover.IsOpen = false;
+            if (popup_Hover is not null)
+            {
+                popup_Hover.IsOpen = false;
+            }
 
             if (NotifyIcon != null)
             {
